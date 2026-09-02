@@ -5,13 +5,13 @@ import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase
 
 // Firebase configuration
 const firebaseConfig = {
-    apiKey: "AIzaSyC2hADJIFOHR_qAMB-kgsaRnBDQ7xPuj98",
-    authDomain: "athelete-management-c991a.firebaseapp.com",
-    projectId: "athelete-management-c991a",
-    storageBucket: "athelete-management-c991a.firebasestorage.app",
-    messagingSenderId: "1095205765222",
-    appId: "1:1095205765222:web:8651aa1ee1341254452da7",
-    measurementId: "G-J2Y006DEYM"
+  apiKey: "AIzaSyCk3t_o5L_ICzpgsZW1GBagjkWW7DFshzs",
+  authDomain: "apex-fit0.firebaseapp.com",
+  projectId: "apex-fit0",
+  storageBucket: "apex-fit0.firebasestorage.app",
+  messagingSenderId: "95366513912",
+  appId: "1:95366513912:web:b64cd12f5f91142f42270d",
+  measurementId: "G-KDGD712L89"
   };
 
 // Initialize Firebase

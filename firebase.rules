@@ -1,33 +1,19 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow users to read and write their own data
-    match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+    // allow authenticated users to read/write their own user doc
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
     }
-    
-    match /assessments/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+    // assessments and testResults are user-scoped
+    match /assessments/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
     }
-
-    // Add rules for yoyo_tests collection
-    match /yoyo_tests/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+    match /testResults/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
     }
-
-    // Add rules for diet_plans collection
-    match /diet_plans/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-
-    // Allow authenticated users to read public data
-    match /tournaments/{document=**} {
-      allow read: if request.auth != null;
-    }
-
-    // Add rules for injury_assessments collection
-    match /injury_assessments/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+    match /diet_plans/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
     }
   }
 }

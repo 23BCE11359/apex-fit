@@ -89,17 +89,42 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Show user message
         addMessage('user', message);
         userInput.value = '';
+        chatForm.disabled = true;
+
+        // Show typing indicator
+        const typingIndicator = document.createElement('div');
+        typingIndicator.className = 'bot-message typing-indicator';
+        typingIndicator.innerHTML = '<span></span><span></span><span></span>';
+        document.getElementById('chatMessages').appendChild(typingIndicator);
 
         try {
-            const response = await getGeminiResponse(getChatPrompt(message, userData));
+            console.log('[Chat] User message:', message);
+            const chatPrompt = getChatPrompt(message, userData);
+            console.log('[Chat] Sending to Gemini API...');
             
+            // Pass both the prompt and the original user message
+            const response = await getGeminiResponse(chatPrompt, message);
+            
+            // Remove typing indicator
+            typingIndicator.remove();
+            
+            console.log('[Chat] Received response');
             // Process response before displaying
             const processedResponse = processResponse(response, message);
             addMessage('bot', processedResponse);
+            
+            // Save conversation
+            if (userData?.sport) {
+                await saveConversation(message, processedResponse);
+            }
 
         } catch (error) {
-            console.error('Chat Error:', error);
-            addMessage('bot', '**Sorry!** I had trouble processing that. Please try again.');
+            console.error('[Chat] Error:', error);
+            typingIndicator.remove();
+            addMessage('bot', '**I\'m having trouble right now.** Please try again or rephrase your message.');
+        } finally {
+            chatForm.disabled = false;
+            userInput.focus();
         }
     });
 
@@ -165,27 +190,53 @@ function formatMessage(content) {
 }
 
 // Update the chat prompt to be more focused and structured
-const getChatPrompt = (message, userData) => `
-You are an AI Mental Fitness Coach. The athlete has this profile:
-Sport: ${userData?.sport || 'General'}
-Level: ${userData?.lastYoyoTest?.level || 'Beginner'}
-Recent Score: ${userData?.lastYoyoTest?.score || 'N/A'}/20
+const getChatPrompt = (message, userData) => {
+    const userProfile = {
+        sport: userData?.sport || 'multiple sports',
+        level: userData?.lastYoyoTest?.level || 'Beginner',
+        score: userData?.lastYoyoTest?.score || 'N/A',
+        name: userData?.name || 'Athlete'
+    };
 
-Their message: "${message}"
+    return `You are "AthleteMind Coach" - an empathetic, supportive mental fitness and wellness coach for athletes. Your goal is to provide practical, actionable guidance.
 
-Rules for your response:
-1. Keep it under 3 sentences
-2. Be motivational but practical
-3. Reference their sport/level when relevant
-4. Use ** for important words
-5. If they mention specific features (diet, training, injury), provide a direct link to that feature
+ATHLETE PROFILE:
+- Name: ${userProfile.name}
+- Sport: ${userProfile.sport}
+- Performance Level: ${userProfile.level}
+- Latest Yo-Yo Score: ${userProfile.score}/20
 
-Respond in a way that shows you understand their concern and provide ONE clear action step.`;
+ATHLETE'S MESSAGE: "${message}"
+
+YOUR RESPONSE GUIDELINES:
+1. **Length**: 2-4 sentences maximum (keep it concise but helpful)
+2. **Tone**: Empathetic, supportive, motivational
+3. **Content**: 
+   - Acknowledge their concern with understanding
+   - Provide ONE clear, actionable step they can take immediately
+   - Reference their sport/level when relevant
+4. **Formatting**: 
+   - Use ** for emphasis on key words
+   - Use numbered lists only if you're giving 3+ steps
+   - Keep language simple and direct
+5. **Links**: If they mention diet, injury, or performance, suggest they check that section
+6. **Avoid**: Generic responses, long explanations, multiple unrelated ideas
+
+EXAMPLES OF GOOD RESPONSES:
+- User: "I'm feeling tired during training"
+  Coach: "**Fatigue often signals you need better recovery.** Make sure you're sleeping 7-9 hours and eating enough protein post-workout. Try increasing your water intake by 25% tomorrow and notice the difference. 💪"
+
+- User: "I lack confidence"
+  Coach: "**Confidence comes from preparation, not perfection.** Review one training session where you performed well - that's your proof you can do this. Spend 5 minutes tomorrow visualizing yourself succeeding. You've got this!"
+
+Now provide your response:`;
+}
 
 async function getDailyMotivation(userData) {
     try {
+        const userMsg = 'Give me daily motivation';
         const prompt = `Create a short, powerful motivational message for a ${userData?.sport || 'sports'} athlete at ${userData?.lastYoyoTest?.level || 'beginner'} level. Keep it under 30 words.`;
-        const motivation = await getGeminiResponse(prompt);
+        const motivation = await getGeminiResponse(prompt, userMsg);
         document.getElementById('dailyQuote').textContent = motivation;
     } catch (error) {
         console.error('Error getting motivation:', error);
@@ -252,15 +303,30 @@ function showFeaturePrompt(feature, message) {
 
 // Add new function to process responses
 function processResponse(response, userMessage) {
+    if (!response || response.trim().length === 0) {
+        return "**I had trouble getting a response.** Please try rephrasing your question or check back in a moment.";
+    }
+
     let processedResponse = response;
+    const userMessageLower = userMessage.toLowerCase();
     
-    // Check for feature references
-    if (userMessage.toLowerCase().includes('diet')) {
-        processedResponse += '\n\n[View Your Diet Plan](/pages/diet-plan.html)';
-    } else if (userMessage.toLowerCase().includes('injury')) {
-        processedResponse += '\n\n[Check Injury Prevention](/pages/injury-prevention.html)';
-    } else if (userMessage.toLowerCase().includes('performance')) {
-        processedResponse += '\n\n[View Performance Dashboard](/pages/dashboard.html)';
+    // Add feature links based on user's message
+    const linksToAdd = [];
+    
+    if (userMessageLower.includes('diet') || userMessageLower.includes('nutrition') || userMessageLower.includes('meal') || userMessageLower.includes('food')) {
+        linksToAdd.push('[📋 View Your Diet Plan](/pages/diet-plan.html)');
+    }
+    
+    if (userMessageLower.includes('injury') || userMessageLower.includes('pain') || userMessageLower.includes('prevent')) {
+        linksToAdd.push('[🩹 Check Injury Prevention](/pages/injury-prevention.html)');
+    }
+    
+    if (userMessageLower.includes('performance') || userMessageLower.includes('score') || userMessageLower.includes('test')) {
+        linksToAdd.push('[📊 View Performance Dashboard](/pages/dashboard.html)');
+    }
+    
+    if (linksToAdd.length > 0) {
+        processedResponse += '\n\n**Quick Links:**\n' + linksToAdd.join(' | ');
     }
 
     return processedResponse;
@@ -275,7 +341,8 @@ window.handleQuickReply = async function(message) {
         const response = await getGeminiResponse(
             `The athlete says: "${message}". 
              Provide a brief, empathetic response and a specific action step.
-             Keep it under 3 sentences and focus on motivation and mental wellness.`
+             Keep it under 3 sentences and focus on motivation and mental wellness.`,
+            message
         );
         addMessage('bot', response);
     } catch (error) {

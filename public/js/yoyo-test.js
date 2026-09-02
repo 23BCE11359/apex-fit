@@ -11,6 +11,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const submitBtn = document.getElementById('submitBtn');
     const progressBar = document.getElementById('progressBar');
 
+    // Log auth changes and toggle submit button availability(added later)
+    try {
+        auth.onAuthStateChanged(user => {
+            console.log('onAuthStateChanged:', user);
+            if (submitBtn) submitBtn.disabled = !user;
+        });
+    } catch (e) {
+        console.warn('Auth state listener not available:', e);
+    }
+
     // Navigation functions with error handling
     const showQuestion = (questionNumber) => {
         // Hide all questions first
@@ -90,9 +100,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const fatigueScore = scores[responses.fatigueRate];
         const recoveryRateScore = scores[responses.recoveryRate];
 
-        // Calculate total score (out of 20)
-        const totalScore = ((sprintScore + enduranceScore + recoveryScore + 
-            trainingScore + fatigueScore + recoveryRateScore) / 24) * 20;
+        // Calculate total score (out of 20), normalized from 0-20
+        const totalScore = (((sprintScore + enduranceScore + recoveryScore + 
+            trainingScore + fatigueScore + recoveryRateScore) - 6) / 18) * 20;
 
         // Calculate individual performance metrics
         const speedMetric = ((sprintScore + fatigueScore) / 8) * 100;
@@ -103,21 +113,21 @@ document.addEventListener('DOMContentLoaded', () => {
         let level = 'Beginner';
         let recommendations = [];
 
-        if (totalScore >= 18) {
+        if (totalScore >= 16) {
             level = 'Elite';
             recommendations = [
                 "Focus on maintaining peak performance",
                 "Consider advanced interval training",
                 "Add sport-specific drills"
             ];
-        } else if (totalScore >= 15) {
+        } else if (totalScore >= 12) {
             level = 'Advanced';
             recommendations = [
                 "Increase training intensity",
                 "Add more recovery exercises",
                 "Work on speed and agility"
             ];
-        } else if (totalScore >= 12) {
+        } else if (totalScore >= 8) {
             level = 'Intermediate';
             recommendations = [
                 "Build endurance with longer sessions",
@@ -200,6 +210,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // Handle form submission
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
+
+        // DEBUG: show current auth state when submit is triggered
+        try {
+            console.log('Auth at submit:', auth.currentUser);
+        } catch (err) {
+            console.warn('Could not read auth.currentUser:', err);
+        }
         
         // Validation checks
         const allSelects = form.querySelectorAll('select');
@@ -216,7 +233,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const user = auth.currentUser;
+        console.log('Current user:', user);
         if (!user) {
+            console.log('No user, redirecting');
             window.location.href = '/index.html';
             return;
         }
@@ -236,37 +255,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const result = calculateScore(responses);
 
-            try {
-                const prompt = `As a sports coach, analyze this athlete's metrics and provide recommendations:
-
-Athlete Level: ${result.level}
-Overall Score: ${result.score}/20
-Speed: ${result.metrics.speed}/100
-Endurance: ${result.metrics.endurance}/100
-Recovery: ${result.metrics.recovery}/100
-
-Provide 4 clear recommendations in exactly this format:
-0. General: [Overall focus area and main goal]
-1. Speed Work: [Specific speed training exercise]
-2. Endurance: [Specific endurance workout]
-3. Recovery: [Specific recovery method]
-
-Keep each recommendation clear and actionable.`;
-
-                const aiResponse = await getGeminiResponse(prompt);
-                
-                // Improved response processing
-                const recommendations = aiResponse
-                    .split('\n')
-                    .filter(line => /^\d+\./.test(line))  // Only get numbered lines
-                    .map(line => {
-                        const [, area, advice] = line.match(/^\d+\.\s*([^:]+):\s*(.+)$/);
-                        return `${area.trim()}: ${advice.trim()}`;
-                    });
-
-                if (recommendations.length < 4) {
-                    throw new Error('Incomplete AI response');
-                }
+            const recommendations = await getGeminiRecommendations(result);
 
                 // Save to Firestore
                 const testData = {
@@ -280,7 +269,7 @@ Keep each recommendation clear and actionable.`;
                 };
 
                 await Promise.all([
-                    setDoc(doc(db, 'yoyo_tests', user.uid), testData),
+                    setDoc(doc(db, 'testResults', user.uid), testData),
                     setDoc(doc(db, 'users', user.uid), {
                         lastYoyoTest: {
                             score: result.score,
@@ -292,18 +281,11 @@ Keep each recommendation clear and actionable.`;
                     }, { merge: true })
                 ]);
 
-                sessionStorage.setItem('yoyoTestResult', JSON.stringify({
-                    ...result,
-                    recommendations
-                }));
-                window.location.href = '/pages/dashboard.html';
-
-            } catch (error) {
-                console.error('AI Error:', error);
-                alert('Unable to generate recommendations. Please try again.');
-                submitBtn.disabled = false;
-                submitBtn.textContent = 'Calculate Score';
-            }
+            sessionStorage.setItem('yoyoTestResult', JSON.stringify({
+                ...result,
+                recommendations
+            }));
+            window.location.href = '/pages/dashboard.html';
 
         } catch (error) {
             console.error('Error:', error);
