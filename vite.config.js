@@ -9,6 +9,7 @@ export default defineConfig({
     })
   ],
   root: 'public',
+  envDir: '../',
   build: {
     outDir: '../dist',
     emptyOutDir: true,

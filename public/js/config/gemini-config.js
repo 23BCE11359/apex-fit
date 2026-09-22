@@ -1,4 +1,4 @@
-const GEMINI_API_KEY = 'AIzaSyDSbTN1cCB7moxten_xHURalVNoy6ZoryM'; 
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY; 
 const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 2000;

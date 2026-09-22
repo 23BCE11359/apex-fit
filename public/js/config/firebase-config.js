@@ -5,7 +5,7 @@ import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase
 
 // Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyCk3t_o5L_ICzpgsZW1GBagjkWW7DFshzs",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: "apex-fit0.firebaseapp.com",
   projectId: "apex-fit0",
   storageBucket: "apex-fit0.firebasestorage.app",
