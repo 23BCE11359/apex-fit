@@ -2,6 +2,7 @@ const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 2000;
+let fallbackResponseHistory = [];
 
 // Store user message for fallback use
 let lastUserMessage = '';
@@ -13,6 +14,11 @@ export async function getGeminiResponse(prompt, userMessage = '') {
     // Validate prompt
     if (!prompt || prompt.trim().length === 0) {
         return getFallbackResponse('empty');
+    }
+
+    if (!GEMINI_API_KEY) {
+        console.error('[Gemini API] VITE_GEMINI_API_KEY is not configured');
+        return getFallbackResponse(userMessage || 'empty');
     }
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
@@ -55,6 +61,9 @@ export async function getGeminiResponse(prompt, userMessage = '') {
             if (!response.ok) {
                 const errorBody = await response.text();
                 console.error(`[Gemini API] HTTP error! status: ${response.status}, body: ${errorBody}`);
+                if ([400, 401, 403, 404].includes(response.status)) {
+                    return getFallbackResponse(userMessage || 'empty');
+                }
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
 
@@ -88,6 +97,26 @@ export async function getGeminiResponse(prompt, userMessage = '') {
 }
 
 function getFallbackResponse(userMessage) {
+    const response = getFallbackResponseBase(userMessage);
+    const responseWasRecentlyUsed = fallbackResponseHistory.includes(response);
+
+    if (responseWasRecentlyUsed) {
+        const variation = [
+            'Try one small step now, then tell me what changed.',
+            'Start with the easiest part and build from there.',
+            'Your next practical step matters more than getting everything perfect.'
+        ][fallbackResponseHistory.length % 3];
+        fallbackResponseHistory.push(response);
+        fallbackResponseHistory = fallbackResponseHistory.slice(-8);
+        return `${response}\n\n${variation}`;
+    }
+
+    fallbackResponseHistory.push(response);
+    fallbackResponseHistory = fallbackResponseHistory.slice(-8);
+    return response;
+}
+
+function getFallbackResponseBase(userMessage) {
     if (userMessage === 'empty') {
         return "Please share what's on your mind. I'm here to help with your performance, nutrition, injury prevention, or mental wellness. What would you like to discuss?";
     }

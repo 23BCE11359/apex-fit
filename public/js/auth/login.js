@@ -8,9 +8,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const messageDiv = document.getElementById('message');
 
     const showMessage = (msg, isError = false) => {
+        if (!messageDiv) {
+            console.error(msg);
+            return;
+        }
         messageDiv.textContent = msg;
         messageDiv.className = `message ${isError ? 'error' : 'success'}`;
-        setTimeout(() => messageDiv.textContent = '', 3000);
+        setTimeout(() => {
+            messageDiv.textContent = '';
+            messageDiv.className = 'message';
+        }, 5000);
     };
 
     const handleSignIn = async (button) => {
