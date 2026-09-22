@@ -5,6 +5,7 @@ import { getGeminiResponse, markdownToHtml } from './config/gemini-config.js';
 // Add conversation memory
 let conversationHistory = [];
 let userData = null;
+let isSubmitting = false;
 
 // Update chatbot personality
 const AI_PERSONA = {
@@ -83,8 +84,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Handle chat form submission
     chatForm.addEventListener('submit', async (e) => {
         e.preventDefault();
+        if (isSubmitting) return;
+
         const message = userInput.value.trim();
         if (!message) return;
+
+        isSubmitting = true;
 
         // Show user message
         addMessage('user', message);
@@ -112,6 +117,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             // Process response before displaying
             const processedResponse = processResponse(response, message);
             addMessage('bot', processedResponse);
+            conversationHistory.push({ user: message, assistant: processedResponse });
+            conversationHistory = conversationHistory.slice(-6);
             
             // Save conversation
             if (userData?.sport) {
@@ -123,7 +130,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             typingIndicator.remove();
             addMessage('bot', '**I\'m having trouble right now.** Please try again or rephrase your message.');
         } finally {
-            chatForm.disabled = false;
+            isSubmitting = false;
             userInput.focus();
         }
     });
@@ -198,6 +205,10 @@ const getChatPrompt = (message, userData) => {
         name: userData?.name || 'Athlete'
     };
 
+    const recentConversation = conversationHistory.length > 0
+        ? `\nRECENT CONVERSATION:\n${conversationHistory.map(turn => `Athlete: ${turn.user}\nCoach: ${turn.assistant}`).join('\n')}`
+        : '';
+
     return `You are "AthleteMind Coach" - an empathetic, supportive mental fitness and wellness coach for athletes. Your goal is to provide practical, actionable guidance.
 
 ATHLETE PROFILE:
@@ -207,6 +218,7 @@ ATHLETE PROFILE:
 - Latest Yo-Yo Score: ${userProfile.score}/20
 
 ATHLETE'S MESSAGE: "${message}"
+${recentConversation}
 
 YOUR RESPONSE GUIDELINES:
 1. **Length**: 2-4 sentences maximum (keep it concise but helpful)
@@ -334,19 +346,8 @@ function processResponse(response, userMessage) {
 
 // Add this function to handle quick replies
 window.handleQuickReply = async function(message) {
-    // Display user message
-    addMessage('user', message);
-
-    try {
-        const response = await getGeminiResponse(
-            `The athlete says: "${message}". 
-             Provide a brief, empathetic response and a specific action step.
-             Keep it under 3 sentences and focus on motivation and mental wellness.`,
-            message
-        );
-        addMessage('bot', response);
-    } catch (error) {
-        console.error('Chat Error:', error);
-        addMessage('bot', 'I understand. Let\'s work together to improve your mindset and performance.');
-    }
+    const userInput = document.getElementById('userInput');
+    const chatForm = document.getElementById('chatForm');
+    userInput.value = message;
+    chatForm.requestSubmit();
 }
